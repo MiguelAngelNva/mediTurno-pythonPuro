@@ -1,4 +1,3 @@
-import json
 from fastapi import APIRouter, Request, HTTPException
 from modulos.medicos.acceso_datos.get_factory import obtener_fabrica
 from modulos.medicos.acceso_datos.medico_dto import MedicoDTO
@@ -6,11 +5,11 @@ from modulos.medicos.notificaciones.sujeto import MedicoSubject
 from modulos.medicos.notificaciones.observador import UsuarioNotificador, AdminNotificador
 
 dao = obtener_fabrica().crear_dao()
+router = APIRouter()
+
 sujeto = MedicoSubject()
 sujeto.agregar_observador(UsuarioNotificador())
 sujeto.agregar_observador(AdminNotificador())
-
-router = APIRouter()
 
 @router.post("/")
 async def crear_medico(req: Request):
@@ -27,17 +26,12 @@ async def crear_medico(req: Request):
         est_id=data["est_id"]
     )
     dao.guardar(medico)
-
-    if not medico.med_licencia or medico.med_licencia.strip() == "":
-        sujeto.notificar(medico)
-
-    return {"mensaje": "Médico almacenado correctamente."}
-
+    sujeto.notificar(medico)
+    return {"mensaje": "Médico creado correctamente."}
 
 @router.get("/")
 def obtener_medicos():
     return [m.__dict__ for m in dao.obtener_todos()]
-
 
 @router.get("/{id}")
 def obtener_medico(id: int):
@@ -45,7 +39,6 @@ def obtener_medico(id: int):
     if not medico:
         raise HTTPException(status_code=404, detail="Médico no encontrado")
     return medico.__dict__
-
 
 @router.put("/{id}")
 async def actualizar_medico(id: int, req: Request):
@@ -63,8 +56,8 @@ async def actualizar_medico(id: int, req: Request):
         est_id=data["est_id"]
     )
     dao.actualizar(medico)
+    sujeto.notificar(medico)
     return {"mensaje": "Médico actualizado correctamente."}
-
 
 @router.delete("/{id}")
 def eliminar_medico(id: int):

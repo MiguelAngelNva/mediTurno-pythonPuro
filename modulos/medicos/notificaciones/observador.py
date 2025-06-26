@@ -1,9 +1,8 @@
 import logging
 from abc import ABC, abstractmethod
 
-# Configurar logging para guardar notificaciones en archivo
 logging.basicConfig(
-    filename="modulos/medicos/logs/notificaciones.log",  # Asegúrate de que esta carpeta exista
+    filename="modulos/medicos/logs/notificaciones.log",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -15,18 +14,12 @@ class Observador(ABC):
 
 class UsuarioNotificador(Observador):
     def actualizar(self, medico):
-        mensaje = (
-            f"[Usuario] Se notificó al médico {medico.med_primer_nombre} {medico.med_primer_apellido} "
-            f"({medico.med_correo}) sobre irregularidades en su registro."
-        )
+        mensaje = f"[Usuario] Nuevo médico registrado: {medico.med_primer_nombre} {medico.med_primer_apellido} ({medico.med_correo})"
         print(mensaje)
         logging.info(mensaje)
 
 class AdminNotificador(Observador):
     def actualizar(self, medico):
-        mensaje = (
-            f"[Admin] Atención: Registro inusual de médico: {medico.med_primer_nombre} {medico.med_primer_apellido} "
-            f"- Licencia: {medico.med_licencia}, Email: {medico.med_correo}"
-        )
+        mensaje = f"[Admin] Alta de médico con licencia {medico.med_licencia} y correo {medico.med_correo}"
         print(mensaje)
         logging.info(mensaje)
