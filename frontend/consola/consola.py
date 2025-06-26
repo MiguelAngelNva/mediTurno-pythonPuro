@@ -1,71 +1,115 @@
 import requests
 import json
 
-# Cargar configuración desde config.json
-with open("modulos/comentarios/configuracion/config.json") as f:
-    config = json.load(f)
+MODULOS = {
+    "comentarios": "modulos/comentarios/configuracion/config.json",
+    "medicos": "modulos/medicos/configuracion/config.json",
+    "ciudades": "modulos/ciudades/configuracion/config.json",
+    "documentos": "modulos/documentos/configuracion/config.json",
+    "estados": "modulos/estados/configuracion/config.json",
+    "pacientes": "modulos/pacientes/configuracion/config.json",
+    "sedes": "modulos/sedes/configuracion/config.json",
+    "citas": "modulos/citas/configuracion/config.json",
+    "notificadores": "modulos/notificadores/configuracion/config.json",
+    "especialidades": "modulos/especialidades/configuracion/config.json",
+    "medico_especialidad": "modulos/medico_especialidad/configuracion/config.json",
+    "tipos_citas": "modulos/tipos_citas/configuracion/config.json"
+}
 
-API = config["api_base"]
-ENDPOINTS = config["endpoints"]
+def cargar_endpoints_desde_config(path):
+    with open(path) as f:
+        config = json.load(f)
+    return config["api_base"], config["endpoints"]
 
-def menu():
-    print("\n===== Menú Principal =====")
-    print("1. Ingresar nuevo comentario")
-    print("2. Listar comentarios")
-    print("3. Obtener comentario por ID")
-    print("4. Actualizar comentario")
-    print("5. Eliminar comentario")
-    print("6. Salir")
+def menu_general():
+    print("\n===== Selección de módulo =====")
+    for idx, nombre in enumerate(MODULOS.keys(), start=1):
+        print(f"{idx}. {nombre.capitalize()}")
+    print(f"{len(MODULOS)+1}. Salir")
 
-def ingresar():
-    texto = input("Texto: ")
-    email = input("Email: ")
-    calificacion = input("Calificación (1-5): ")
-    r = requests.post(f"{API}{ENDPOINTS['create']}", json={
-        "texto": texto,
-        "usuario_email": email,
-        "calificacion": int(calificacion)
-    })
+def menu_operaciones():
+    print("\n===== Operaciones =====")
+    print("1. Crear")
+    print("2. Listar")
+    print("3. Obtener por ID")
+    print("4. Actualizar")
+    print("5. Eliminar")
+    print("6. Volver")
+
+def crear(api, endpoint):
+    datos = {}
+    print("\nIngrese los datos en formato clave=valor (vacío para terminar):")
+    while True:
+        linea = input("> ")
+        if not linea.strip():
+            break
+        if "=" not in linea:
+            print("Formato inválido, usa clave=valor")
+            continue
+        clave, valor = linea.split("=", 1)
+        datos[clave.strip()] = valor.strip()
+    r = requests.post(f"{api}{endpoint['create']}", json=datos)
     print(r.json())
 
-def listar():
-    r = requests.get(f"{API}{ENDPOINTS['read_all']}")
-    for c in r.json():
-        print(c)
+def listar(api, endpoint):
+    r = requests.get(f"{api}{endpoint['read_all']}")
+    for item in r.json():
+        print(item)
 
-def obtener():
-    id = input("ID del comentario: ")
-    url = ENDPOINTS["read_one"].replace("{id}", id)
-    r = requests.get(f"{API}{url}")
-    print(r.json() if r.status_code == 200 else "Comentario no encontrado.")
+def obtener(api, endpoint):
+    id = input("ID: ")
+    url = endpoint["read_one"].replace("{id}", id)
+    r = requests.get(f"{api}{url}")
+    print(r.json() if r.status_code == 200 else "No encontrado.")
 
-def actualizar():
+def actualizar(api, endpoint):
     id = input("ID a actualizar: ")
-    texto = input("Nuevo texto: ")
-    email = input("Nuevo email: ")
-    calificacion = input("Nueva calificación: ")
-    url = ENDPOINTS["update"].replace("{id}", id)
-    r = requests.put(f"{API}{url}", json={
-        "texto": texto,
-        "usuario_email": email,
-        "calificacion": int(calificacion)
-    })
+    url = endpoint["update"].replace("{id}", id)
+    datos = {}
+    print("Ingrese los nuevos datos en formato clave=valor (vacío para terminar):")
+    while True:
+        linea = input("> ")
+        if not linea.strip():
+            break
+        if "=" not in linea:
+            print("Formato inválido, usa clave=valor")
+            continue
+        clave, valor = linea.split("=", 1)
+        datos[clave.strip()] = valor.strip()
+    r = requests.put(f"{api}{url}", json=datos)
     print(r.json())
 
-def eliminar():
+def eliminar(api, endpoint):
     id = input("ID a eliminar: ")
-    url = ENDPOINTS["delete"].replace("{id}", id)
-    r = requests.delete(f"{API}{url}")
+    url = endpoint["delete"].replace("{id}", id)
+    r = requests.delete(f"{api}{url}")
     print(r.json())
 
 if __name__ == "__main__":
     while True:
-        menu()
-        opcion = input("Seleccione una opción: ")
-        if opcion == "1": ingresar()
-        elif opcion == "2": listar()
-        elif opcion == "3": obtener()
-        elif opcion == "4": actualizar()
-        elif opcion == "5": eliminar()
-        elif opcion == "6": break
-        else: print("Opción inválida.")
+        menu_general()
+        seleccion = input("Selecciona un módulo: ")
+        if seleccion.isdigit() and 1 <= int(seleccion) <= len(MODULOS):
+            modulo = list(MODULOS.keys())[int(seleccion)-1]
+            ruta_config = MODULOS[modulo]
+            try:
+                api, endpoint = cargar_endpoints_desde_config(ruta_config)
+            except FileNotFoundError:
+                print(f"No se encontró el archivo de configuración para {modulo}")
+                continue
+
+            while True:
+                menu_operaciones()
+                op = input("Operación: ")
+                if op == "1": crear(api, endpoint)
+                elif op == "2": listar(api, endpoint)
+                elif op == "3": obtener(api, endpoint)
+                elif op == "4": actualizar(api, endpoint)
+                elif op == "5": eliminar(api, endpoint)
+                elif op == "6": break
+                else: print("Opción inválida.")
+        elif seleccion == str(len(MODULOS)+1):
+            print("Saliendo del sistema")
+            break
+        else:
+            print("Módulo inválido.")
