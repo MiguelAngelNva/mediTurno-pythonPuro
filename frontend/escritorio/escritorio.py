@@ -1,120 +1,90 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import requests
 import json
+import requests
 
-# Cargar configuración desde config.json
-with open("modulos/comentarios/configuracion/config.json") as f:
-    config = json.load(f)
+# Configuración de módulos y rutas
+MODULOS = {
+    "comentarios": "modulos/comentarios/configuracion/config.json",
+    "medicos": "modulos/medicos/configuracion/config.json",
+    "ciudades": "modulos/ciudades/configuracion/config.json",
+    "documentos": "modulos/documentos/configuracion/config.json",
+    "estados": "modulos/estados/configuracion/config.json",
+    "pacientes": "modulos/pacientes/configuracion/config.json",
+    "sedes": "modulos/sedes/configuracion/config.json",
+    "citas": "modulos/citas/configuracion/config.json",
+    "notificadores": "modulos/notificadores/configuracion/config.json",
+    "especialidades": "modulos/especialidades/configuracion/config.json",
+    "medico_especialidad": "modulos/medico_especialidad/configuracion/config.json",
+    "tipos_citas": "modulos/tipos_citas/configuracion/config.json"
+}
 
-API = config["api_base"]
-ENDPOINTS = config["endpoints"]
+def cargar_config(path):
+    with open(path, encoding="utf-8") as f:
+        config = json.load(f)
+        return config["api_base"], config["endpoints"]
 
-def recargar_datos():
-    for item in tree.get_children():
-        tree.delete(item)
+def listar_elementos(api, endpoint):
     try:
-        r = requests.get(API + ENDPOINTS["read_all"])
+        r = requests.get(f"{api}{endpoint['read_all']}")
         if r.status_code == 200:
-            for c in r.json():
-                tree.insert("", "end", values=(
-                    c["id"], c["usuario_email"], c["texto"], c["calificacion"], c.get("fecha", "")
-                ))
+            return r.json()
+        else:
+            return [{"error": f"Status {r.status_code}"}]
     except Exception as e:
-        messagebox.showerror("Error", str(e))
+        return [{"error": str(e)}]
 
-def crear_comentario():
-    dialogo_comentario("Crear nuevo comentario")
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Gestor de Módulos Mediturno")
+        self.geometry("800x500")
 
-def editar_comentario():
-    seleccionado = tree.focus()
-    if not seleccionado:
-        messagebox.showwarning("Seleccionar", "Seleccione un comentario.")
-        return
-    valores = tree.item(seleccionado, "values")
-    dialogo_comentario("Editar comentario", valores)
+        self.modulo_actual = None
+        self.api = None
+        self.endpoints = None
 
-def eliminar_comentario():
-    seleccionado = tree.focus()
-    if not seleccionado:
-        messagebox.showwarning("Seleccionar", "Seleccione un comentario.")
-        return
-    id_com = tree.item(seleccionado, "values")[0]
-    if messagebox.askyesno("Eliminar", "¿Seguro que desea eliminar este comentario?"):
+        self.crear_widgets()
+
+    def crear_widgets(self):
+        # Selector de módulo
+        tk.Label(self, text="Módulo:", font=("Arial", 12)).pack(pady=5)
+        self.modulo_var = tk.StringVar()
+        modulos_lista = list(MODULOS.keys())
+        self.selector = ttk.Combobox(self, textvariable=self.modulo_var, values=modulos_lista, state="readonly")
+        self.selector.pack()
+
+        self.selector.bind("<<ComboboxSelected>>", self.seleccionar_modulo)
+
+        # Botones
+        tk.Button(self, text="Listar elementos", command=self.mostrar_datos).pack(pady=10)
+
+        # Vista de resultados
+        self.tabla = tk.Text(self, wrap=tk.WORD, height=20)
+        self.tabla.pack(expand=True, fill="both", padx=10, pady=10)
+
+    def seleccionar_modulo(self, event=None):
+        modulo = self.modulo_var.get()
+        ruta = MODULOS.get(modulo)
+        if not ruta:
+            messagebox.showerror("Error", "Ruta de módulo no encontrada")
+            return
         try:
-            r = requests.delete(API + ENDPOINTS["delete"].replace("{id}", str(id_com)))
-            if r.status_code == 200:
-                recargar_datos()
-                messagebox.showinfo("Éxito", "Comentario eliminado.")
-            else:
-                messagebox.showerror("Error", r.text)
+            self.api, self.endpoints = cargar_config(ruta)
+            self.modulo_actual = modulo
+            messagebox.showinfo("Listo", f"Configuración cargada para '{modulo}'")
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            messagebox.showerror("Error", f"No se pudo cargar el módulo: {e}")
 
-def dialogo_comentario(titulo, datos=None):
-    ventana = tk.Toplevel(root)
-    ventana.title(titulo)
+    def mostrar_datos(self):
+        if not self.api or not self.endpoints:
+            messagebox.showwarning("Atención", "Primero selecciona un módulo válido.")
+            return
+        datos = listar_elementos(self.api, self.endpoints)
+        self.tabla.delete(1.0, tk.END)
+        for item in datos:
+            self.tabla.insert(tk.END, json.dumps(item, indent=2, ensure_ascii=False) + "\n\n")
 
-    tk.Label(ventana, text="Email:").grid(row=0, column=0)
-    email = tk.Entry(ventana)
-    email.grid(row=0, column=1)
-
-    tk.Label(ventana, text="Comentario:").grid(row=1, column=0)
-    texto = tk.Entry(ventana)
-    texto.grid(row=1, column=1)
-
-    tk.Label(ventana, text="Calificación:").grid(row=2, column=0)
-    calificacion = tk.Entry(ventana)
-    calificacion.grid(row=2, column=1)
-
-    if datos:
-        id_com, email_val, texto_val, calif_val, _ = datos
-        email.insert(0, email_val)
-        texto.insert(0, texto_val)
-        calificacion.insert(0, calif_val)
-
-    def guardar():
-        payload = {
-            "usuario_email": email.get(),
-            "texto": texto.get(),
-            "calificacion": calificacion.get()
-        }
-        try:
-            if datos:
-                r = requests.put(API + ENDPOINTS["update"].replace("{id}", str(id_com)), json=payload)
-            else:
-                r = requests.post(API + ENDPOINTS["create"], json=payload)
-            if r.status_code in [200, 201]:
-                recargar_datos()
-                ventana.destroy()
-                messagebox.showinfo("Éxito", "Operación exitosa.")
-            else:
-                messagebox.showerror("Error", r.text)
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    tk.Button(ventana, text="Guardar", command=guardar).grid(row=3, columnspan=2)
-
-# Ventana principal
-root = tk.Tk()
-root.title("Gestión de Comentarios")
-
-# Tabla
-cols = ("ID", "Email", "Comentario", "Calificación", "Fecha")
-tree = ttk.Treeview(root, columns=cols, show="headings")
-for col in cols:
-    tree.heading(col, text=col)
-    tree.column(col, anchor="center", width=150)
-tree.pack(fill="both", expand=True, padx=10, pady=10)
-
-# Botones CRUD
-botonera = tk.Frame(root)
-botonera.pack(pady=10)
-
-tk.Button(botonera, text="Nuevo", command=crear_comentario).pack(side="left", padx=5)
-tk.Button(botonera, text="Editar", command=editar_comentario).pack(side="left", padx=5)
-tk.Button(botonera, text="Eliminar", command=eliminar_comentario).pack(side="left", padx=5)
-tk.Button(botonera, text="Recargar", command=recargar_datos).pack(side="left", padx=5)
-
-recargar_datos()
-root.mainloop()
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()
